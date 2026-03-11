@@ -13,49 +13,50 @@ const CONFIG = {
   loginCommand: '/logar bruno1',
 
   stableLoginDelayMs: 12000,
-  afterLoginWaitMs: 15000,
-  hotbarTimeoutMs: 30000,
   reconnectDelayMs: 15000,
 
   hotbarSlot: 4,
   menuClickSlot: 13,
   menuClickDelayMs: 8000,
-  afterMenuClickPauseMs: 8000,
-  useItemDelayMs: 4000,
 
-  pescaDelay: 15000,
+  pescaDelayMin: 30000,
+  pescaDelayMax: 35000,
+
+  rodDetectDelay: 20000,
+  startFishingDelay: 10000,
+
+  peixesInterval: 5 * 60 * 1000,
 
   peixesWebhook: "https://discord.com/api/webhooks/1479869845339373645/SsKiJKujjScjXAfOMF82c4MCMaAjkKGy3qkC2tDr6ipBpP90dtLxISA5ijHGAoJBQ5FJ"
 }
 
 let state = {}
 
-function resetState() {
+function resetState(){
   state = {
-    joinTime: 0,
-    spawnCount: 0,
-    loginSent: false,
-    loginConfirmed: false,
-    menuClicked: false,
-    compassUsed: false,
-    postLoginStarted: false,
-    stableTimer: null,
-    waitingPeixesMessage: false,
-    enteredFishingServer: false
+    loginSent:false,
+    loginConfirmed:false,
+    compassUsed:false,
+    menuClicked:false,
+    waitingPeixes:false,
+    enteredFishingServer:false
   }
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+function sleep(ms){
+  return new Promise(r=>setTimeout(r,ms))
 }
 
-function cleanMessage(text) {
-  return String(text || '').replace(/§[0-9A-FK-OR]/gi, '').trim()
+function randomDelay(min,max){
+  return Math.floor(Math.random()*(max-min)+min)
 }
 
-async function sendWebhook(message) {
-  try {
+function cleanMessage(t){
+  return String(t||'').replace(/§[0-9A-FK-OR]/gi,'').trim()
+}
 
+async function sendWebhook(message){
+  try{
     await fetch(CONFIG.peixesWebhook,{
       method:"POST",
       headers:{ "Content-Type":"application/json"},
@@ -64,155 +65,74 @@ async function sendWebhook(message) {
         content:`🐟 **PEIXES**\nConta: **${bot.username}**\n${message}`
       })
     })
-
-  } catch(err) {
+  }catch(err){
     console.log("Erro webhook:",err.message)
   }
 }
 
 function scheduleReconnect(delay = CONFIG.reconnectDelayMs){
-
   if(reconnecting) return
-
-  reconnecting = true
-
+  reconnecting=true
   console.log(`Reconectando em ${delay/1000}s...`)
-
   setTimeout(()=>{
-    reconnecting = false
+    reconnecting=false
     createBot()
   },delay)
 }
 
-function looksLikeLoginPrompt(text){
-
-  const t = cleanMessage(text).toLowerCase()
-
-  return (
-    t.includes("/login") ||
-    t.includes("/logar") ||
-    t.includes("senha")
-  )
-}
-
-function looksLikeLoginSuccess(text){
-
-  const t = cleanMessage(text).toLowerCase()
-
-  return (
-    t.includes("logou com sucesso") ||
-    t.includes("login realizado")
-  )
-}
-
-function scheduleLoginAttempt(){
-
-  if(state.stableTimer) clearTimeout(state.stableTimer)
-
-  state.stableTimer = setTimeout(()=>{
-    sendLogin()
-  },CONFIG.stableLoginDelayMs)
-}
-
 function sendLogin(){
-
   if(!bot || state.loginSent) return
-
-  state.loginSent = true
-
+  state.loginSent=true
   console.log("Enviando login...")
-
   bot.chat(CONFIG.loginCommand)
 }
 
-async function waitForHotbar(){
+async function openCompass(){
 
-  const start = Date.now()
-
-  while(Date.now() - start < CONFIG.hotbarTimeoutMs){
-
-    for(let i=36;i<=44;i++){
-      if(bot.inventory.slots[i]) return true
-    }
-
-    await sleep(2000)
-
-  }
-
-  return false
-}
-
-async function openCompassMenuSequence(){
-
-  if(state.postLoginStarted) return
-
-  state.postLoginStarted = true
-
-  await sleep(CONFIG.afterLoginWaitMs)
-
-  const ready = await waitForHotbar()
-
-  if(!ready) return
+  await sleep(15000)
 
   bot.setQuickBarSlot(CONFIG.hotbarSlot)
 
-  await sleep(CONFIG.useItemDelayMs)
+  await sleep(4000)
 
   if(!state.compassUsed){
-
-    state.compassUsed = true
-
+    state.compassUsed=true
     console.log("Usando bússola")
-
     bot.activateItem()
-
   }
 }
 
-async function checkPeixes(){
+async function startFishing(){
 
-  await sleep(5000)
+  const delay=randomDelay(CONFIG.pescaDelayMin,CONFIG.pescaDelayMax)
 
-  console.log("Executando /peixes")
+  console.log(`Esperando ${delay/1000}s para executar /pesca`)
 
-  state.waitingPeixesMessage = true
+  await sleep(delay)
 
-  if(bot.player){
-    bot.chat("/peixes")
-  }
-}
-
-async function startFishingSequence(){
-
-  console.log("Iniciando pesca...")
-
-  await sleep(CONFIG.pescaDelay)
-
-  if(bot.player){
-    bot.chat("/pesca")
-  }
+  bot.chat("/pesca")
 
   console.log("/pesca enviado")
 
-  await sleep(10000)
+  console.log("Esperando servidor estabilizar...")
 
-  let rodSlot = null
+  await sleep(CONFIG.rodDetectDelay)
+
+  let rodSlot=null
 
   for(let i=36;i<=44;i++){
 
-    const item = bot.inventory.slots[i]
+    const item=bot.inventory.slots[i]
 
     if(item && item.name.includes("fishing_rod")){
-      rodSlot = i - 36
+      rodSlot=i-36
       break
     }
 
   }
 
-  if(rodSlot === null){
-
-    console.log("Vara de pesca não encontrada")
-
+  if(rodSlot===null){
+    console.log("Vara não encontrada")
     return
   }
 
@@ -220,24 +140,43 @@ async function startFishingSequence(){
 
   bot.setQuickBarSlot(rodSlot)
 
-  await sleep(2000)
+  console.log("Aguardando 10s antes de começar pesca")
+
+  await sleep(CONFIG.startFishingDelay)
 
   console.log("Começando pesca")
 
   bot.activateItem()
 
-  checkPeixes()
+  startPeixesLoop()
+}
+
+function startPeixesLoop(){
+
+  console.log("Iniciando loop de /peixes")
+
+  setInterval(()=>{
+
+    console.log("Executando /peixes")
+
+    state.waitingPeixes=true
+
+    bot.chat("/peixes")
+
+  },CONFIG.peixesInterval)
 }
 
 function maybeHandleLoginSuccess(text){
 
-  if(!state.loginConfirmed && looksLikeLoginSuccess(text)){
+  text=cleanMessage(text).toLowerCase()
 
-    state.loginConfirmed = true
+  if(!state.loginConfirmed && text.includes("logou com sucesso")){
+
+    state.loginConfirmed=true
 
     console.log("Login confirmado")
 
-    openCompassMenuSequence()
+    openCompass()
 
   }
 }
@@ -246,7 +185,7 @@ function createBot(){
 
   resetState()
 
-  bot = mineflayer.createBot({
+  bot=mineflayer.createBot({
     host:CONFIG.host,
     port:CONFIG.port,
     username:CONFIG.username,
@@ -255,28 +194,20 @@ function createBot(){
 
   bot.on("spawn",()=>{
 
-    state.spawnCount++
-
-    console.log("Spawn detectado",state.spawnCount)
+    console.log("Spawn detectado")
 
     if(!state.loginSent){
-
-      scheduleLoginAttempt()
+      setTimeout(sendLogin,CONFIG.stableLoginDelayMs)
       return
-
     }
 
     if(state.menuClicked && !state.enteredFishingServer){
 
-      state.enteredFishingServer = true
+      state.enteredFishingServer=true
 
-      console.log("Spawn após troca de servidor detectado")
+      console.log("Spawn na pesca detectado")
 
-      setTimeout(()=>{
-
-        startFishingSequence()
-
-      },15000)
+      startFishing()
 
     }
 
@@ -284,21 +215,15 @@ function createBot(){
 
   bot.on("messagestr",(msg)=>{
 
-    const cleanMsg = cleanMessage(msg)
+    const cleanMsg=cleanMessage(msg)
 
     console.log("[CHAT]",cleanMsg)
 
-    if(!state.loginSent && looksLikeLoginPrompt(cleanMsg)){
+    if(state.waitingPeixes){
 
-      setTimeout(sendLogin,3000)
+      state.waitingPeixes=false
 
-    }
-
-    if(state.waitingPeixesMessage){
-
-      state.waitingPeixesMessage = false
-
-      console.log("Mensagem /peixes capturada:",cleanMsg)
+      console.log("Resposta /peixes capturada")
 
       sendWebhook(cleanMsg)
 
@@ -308,7 +233,7 @@ function createBot(){
 
   })
 
-  bot.on("windowOpen",async(window)=>{
+  bot.on("windowOpen",async()=>{
 
     console.log("Menu aberto")
 
@@ -316,42 +241,31 @@ function createBot(){
 
     await sleep(CONFIG.menuClickDelayMs)
 
-    const target = bot.currentWindow.slots[CONFIG.menuClickSlot]
+    const target=bot.currentWindow.slots[CONFIG.menuClickSlot]
 
     if(!target) return
 
     await bot.clickWindow(CONFIG.menuClickSlot,0,0)
 
-    state.menuClicked = true
+    state.menuClicked=true
 
     console.log("Slot 13 clicado")
-
-    console.log("Aguardando troca de servidor...")
 
   })
 
   bot.on("kicked",(reason)=>{
-
     console.log("Kick:",util.inspect(reason))
-
     scheduleReconnect()
-
   })
 
   bot.on("end",()=>{
-
     console.log("Conexão encerrada")
-
     scheduleReconnect(10000)
-
   })
 
   bot.on("error",(err)=>{
-
     console.log("Erro:",err.message)
-
   })
-
 }
 
 createBot()
