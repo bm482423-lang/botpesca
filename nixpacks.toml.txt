@@ -1,5 +1,0 @@
-[phases.setup]
-nixPkgs = ["nodejs", "jdk17"]
-
-[phases.start]
-cmds = ["npm install && node bot.js"]
