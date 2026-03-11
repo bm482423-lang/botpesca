@@ -1,0 +1,12 @@
+{
+  "name": "botmine",
+  "version": "1.0.0",
+  "main": "botmine.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node botmine.js"
+  },
+  "dependencies": {
+    "mineflayer": "^4.14.0"
+  }
+}
