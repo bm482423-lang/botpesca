@@ -1,16 +1,23 @@
 const mineflayer = require('mineflayer')
 const util = require('util')
 
-let bot = null
-let reconnecting = false
+const ACCOUNTS = [
+  { username: "bmw1", password: "bruno1" },
+  { username: "bmw2", password: "bruno1" },
+  { username: "bmw3", password: "bruno1" },
+  { username: "bmw4", password: "bruno1" },
+  { username: "bmw5", password: "bruno1" },
+  { username: "bmw6", password: "bruno1" },
+  { username: "bmw7", password: "bruno1" },
+  { username: "bmw8", password: "bruno1" },
+  { username: "bmw9", password: "bruno1" },
+  { username: "bmw10", password: "bruno1" }
+]
 
 const CONFIG = {
   host: '45.89.30.237',
   port: 30000,
-  username: 'joao2',
   version: '1.20.4',
-
-  loginCommand: '/logar bruno1',
 
   stableLoginDelayMs: 12000,
   reconnectDelayMs: 15000,
@@ -30,19 +37,6 @@ const CONFIG = {
   peixesWebhook: "https://discord.com/api/webhooks/1479869845339373645/SsKiJKujjScjXAfOMF82c4MCMaAjkKGy3qkC2tDr6ipBpP90dtLxISA5ijHGAoJBQ5FJ"
 }
 
-let state = {}
-
-function resetState(){
-  state = {
-    loginSent:false,
-    loginConfirmed:false,
-    compassUsed:false,
-    menuClicked:false,
-    waitingPeixes:false,
-    enteredFishingServer:false
-  }
-}
-
 function sleep(ms){
   return new Promise(r=>setTimeout(r,ms))
 }
@@ -55,8 +49,9 @@ function cleanMessage(t){
   return String(t||'').replace(/§[0-9A-FK-OR]/gi,'').trim()
 }
 
-async function sendWebhook(message){
+async function sendWebhook(bot,message){
   try{
+
     await fetch(CONFIG.peixesWebhook,{
       method:"POST",
       headers:{ "Content-Type":"application/json"},
@@ -65,147 +60,168 @@ async function sendWebhook(message){
         content:`🐟 **PEIXES**\nConta: **${bot.username}**\n${message}`
       })
     })
+
   }catch(err){
     console.log("Erro webhook:",err.message)
   }
 }
 
-function scheduleReconnect(delay = CONFIG.reconnectDelayMs){
-  if(reconnecting) return
-  reconnecting=true
-  console.log(`Reconectando em ${delay/1000}s...`)
-  setTimeout(()=>{
-    reconnecting=false
-    createBot()
-  },delay)
-}
+function createBot(account){
 
-function sendLogin(){
-  if(!bot || state.loginSent) return
-  state.loginSent=true
-  console.log("Enviando login...")
-  bot.chat(CONFIG.loginCommand)
-}
-
-async function openCompass(){
-
-  await sleep(15000)
-
-  bot.setQuickBarSlot(CONFIG.hotbarSlot)
-
-  await sleep(4000)
-
-  if(!state.compassUsed){
-    state.compassUsed=true
-    console.log("Usando bússola")
-    bot.activateItem()
+  let state = {
+    loginSent:false,
+    loginConfirmed:false,
+    compassUsed:false,
+    menuClicked:false,
+    waitingPeixes:false,
+    enteredFishingServer:false
   }
-}
 
-async function startFishing(){
+  let reconnecting=false
 
-  const delay=randomDelay(CONFIG.pescaDelayMin,CONFIG.pescaDelayMax)
+  const bot = mineflayer.createBot({
+    host:CONFIG.host,
+    port:CONFIG.port,
+    username:account.username,
+    version:CONFIG.version
+  })
 
-  console.log(`Esperando ${delay/1000}s para executar /pesca`)
+  function scheduleReconnect(delay = CONFIG.reconnectDelayMs){
 
-  await sleep(delay)
+    if(reconnecting) return
 
-  bot.chat("/pesca")
+    reconnecting=true
 
-  console.log("/pesca enviado")
+    console.log(`[${bot.username}] Reconectando em ${delay/1000}s`)
 
-  console.log("Esperando servidor estabilizar...")
+    setTimeout(()=>{
 
-  await sleep(CONFIG.rodDetectDelay)
+      reconnecting=false
 
-  let rodSlot=null
+      createBot(account)
 
-  for(let i=36;i<=44;i++){
+    },delay)
 
-    const item=bot.inventory.slots[i]
+  }
 
-    if(item && item.name.includes("fishing_rod")){
-      rodSlot=i-36
-      break
+  function sendLogin(){
+
+    if(!bot || state.loginSent) return
+
+    state.loginSent=true
+
+    console.log(`[${bot.username}] Enviando login`)
+
+    bot.chat(`/logar ${account.password}`)
+
+  }
+
+  async function openCompass(){
+
+    await sleep(15000)
+
+    bot.setQuickBarSlot(CONFIG.hotbarSlot)
+
+    await sleep(4000)
+
+    if(!state.compassUsed){
+
+      state.compassUsed=true
+
+      console.log(`[${bot.username}] Usando bússola`)
+
+      bot.activateItem()
+
     }
 
   }
 
-  if(rodSlot===null){
-    console.log("Vara não encontrada")
-    return
+  async function startFishing(){
+
+    const delay=randomDelay(CONFIG.pescaDelayMin,CONFIG.pescaDelayMax)
+
+    console.log(`[${bot.username}] Esperando ${delay/1000}s para /pesca`)
+
+    await sleep(delay)
+
+    bot.chat("/pesca")
+
+    console.log(`[${bot.username}] /pesca enviado`)
+
+    console.log(`[${bot.username}] Esperando servidor estabilizar`)
+
+    await sleep(CONFIG.rodDetectDelay)
+
+    let rodSlot=null
+
+    for(let i=36;i<=44;i++){
+
+      const item=bot.inventory.slots[i]
+
+      if(item && item.name.includes("fishing_rod")){
+
+        rodSlot=i-36
+        break
+
+      }
+
+    }
+
+    if(rodSlot===null){
+
+      console.log(`[${bot.username}] Vara não encontrada`)
+      return
+
+    }
+
+    console.log(`[${bot.username}] Vara encontrada no slot ${rodSlot}`)
+
+    bot.setQuickBarSlot(rodSlot)
+
+    console.log(`[${bot.username}] Esperando 10s para começar pesca`)
+
+    await sleep(CONFIG.startFishingDelay)
+
+    console.log(`[${bot.username}] Começando pesca`)
+
+    bot.activateItem()
+
+    startPeixesLoop()
+
   }
 
-  console.log("Vara encontrada no slot",rodSlot)
+  function startPeixesLoop(){
 
-  bot.setQuickBarSlot(rodSlot)
+    console.log(`[${bot.username}] Loop /peixes iniciado`)
 
-  console.log("Aguardando 10s antes de começar pesca")
+    setInterval(()=>{
 
-  await sleep(CONFIG.startFishingDelay)
+      console.log(`[${bot.username}] Executando /peixes`)
 
-  console.log("Começando pesca")
+      state.waitingPeixes=true
 
-  bot.activateItem()
+      bot.chat("/peixes")
 
-  startPeixesLoop()
-}
-
-function startPeixesLoop(){
-
-  console.log("Iniciando loop de /peixes")
-
-  setInterval(()=>{
-
-    console.log("Executando /peixes")
-
-    state.waitingPeixes=true
-
-    bot.chat("/peixes")
-
-  },CONFIG.peixesInterval)
-}
-
-function maybeHandleLoginSuccess(text){
-
-  text=cleanMessage(text).toLowerCase()
-
-  if(!state.loginConfirmed && text.includes("logou com sucesso")){
-
-    state.loginConfirmed=true
-
-    console.log("Login confirmado")
-
-    openCompass()
+    },CONFIG.peixesInterval)
 
   }
-}
-
-function createBot(){
-
-  resetState()
-
-  bot=mineflayer.createBot({
-    host:CONFIG.host,
-    port:CONFIG.port,
-    username:CONFIG.username,
-    version:CONFIG.version
-  })
 
   bot.on("spawn",()=>{
 
-    console.log("Spawn detectado")
+    console.log(`[${bot.username}] Spawn detectado`)
 
     if(!state.loginSent){
+
       setTimeout(sendLogin,CONFIG.stableLoginDelayMs)
       return
+
     }
 
     if(state.menuClicked && !state.enteredFishingServer){
 
       state.enteredFishingServer=true
 
-      console.log("Spawn na pesca detectado")
+      console.log(`[${bot.username}] Spawn pesca detectado`)
 
       startFishing()
 
@@ -217,25 +233,29 @@ function createBot(){
 
     const cleanMsg=cleanMessage(msg)
 
-    console.log("[CHAT]",cleanMsg)
+    console.log(`[${bot.username}]`,cleanMsg)
 
     if(state.waitingPeixes){
 
       state.waitingPeixes=false
 
-      console.log("Resposta /peixes capturada")
-
-      sendWebhook(cleanMsg)
+      sendWebhook(bot,cleanMsg)
 
     }
 
-    maybeHandleLoginSuccess(cleanMsg)
+    if(!state.loginConfirmed && cleanMsg.toLowerCase().includes("logou com sucesso")){
+
+      state.loginConfirmed=true
+
+      console.log(`[${bot.username}] Login confirmado`)
+
+      openCompass()
+
+    }
 
   })
 
   bot.on("windowOpen",async()=>{
-
-    console.log("Menu aberto")
 
     if(state.menuClicked) return
 
@@ -249,23 +269,54 @@ function createBot(){
 
     state.menuClicked=true
 
-    console.log("Slot 13 clicado")
+    console.log(`[${bot.username}] Slot 13 clicado`)
 
   })
 
   bot.on("kicked",(reason)=>{
-    console.log("Kick:",util.inspect(reason))
+
+    console.log(`[${bot.username}] Kick`,util.inspect(reason))
+
     scheduleReconnect()
+
   })
 
   bot.on("end",()=>{
-    console.log("Conexão encerrada")
-    scheduleReconnect(10000)
+
+    console.log(`[${bot.username}] Conexão encerrada`)
+
+    scheduleReconnect()
+
   })
 
   bot.on("error",(err)=>{
-    console.log("Erro:",err.message)
+
+    console.log(`[${bot.username}] Erro`,err.message)
+
   })
+
 }
 
-createBot()
+async function startBots(){
+
+  for(let i=0;i<ACCOUNTS.length;i++){
+
+    const account=ACCOUNTS[i]
+
+    console.log(`Iniciando bot ${account.username}`)
+
+    createBot(account)
+
+    if(i<ACCOUNTS.length-1){
+
+      console.log("Aguardando 15s para próxima conta")
+
+      await sleep(15000)
+
+    }
+
+  }
+
+}
+
+startBots()
