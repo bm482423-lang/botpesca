@@ -10,7 +10,7 @@ const CONFIG = {
   username: 'JATAPODENDO',
   version: '1.20.4',
 
-  loginCommand: '/logar clan001',
+  loginCommand: '/logar clan007',
 
   stableLoginDelayMs: 12000,
   reconnectDelayMs: 15000,
@@ -269,4 +269,5 @@ function createBot(){
 }
 
 createBot()
+
 
